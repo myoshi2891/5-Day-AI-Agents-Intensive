@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Set
 
@@ -44,10 +45,9 @@ class FallbackAgent:
             "fee": "get_fee_for_payment_method",
             "payment": "get_fee_for_payment_method",
         }
-        self._tool_arg_requirements: Dict[str, Set[str]] = {
-            "get_exchange_rate": {"base_currency", "target_currency"},
-            "get_fee_for_payment_method": {"method"},
-        }
+        self._tool_arg_requirements: Dict[str, Set[str]] = (
+            self._build_tool_arg_requirements()
+        )
         self._conversion_required_args: Sequence[str] = (
             "amount",
             "base_currency",
@@ -57,6 +57,29 @@ class FallbackAgent:
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"FallbackAgent(name={self.name!r}, model={self.model!r})"
+
+    def _build_tool_arg_requirements(self) -> Dict[str, Set[str]]:
+        """Inspect tools to find their required arguments dynamically."""
+        requirements = {}
+        for tool in self.tools:
+            try:
+                sig = inspect.signature(tool)
+                required_args = {
+                    p.name
+                    for p in sig.parameters.values()
+                    if p.default is inspect.Parameter.empty
+                    and p.kind
+                    in (
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                        inspect.Parameter.KEYWORD_ONLY,
+                    )
+                }
+                requirements[tool.__name__] = required_args
+            except (TypeError, ValueError):  # pragma: no cover
+                logger.warning(
+                    "Could not inspect signature of tool %s", tool, exc_info=True
+                )
+        return requirements
 
     def _missing_kwargs(self, tool_name: str, provided: Dict[str, Any]) -> List[str]:
         required = self._tool_arg_requirements.get(tool_name, set())
@@ -75,16 +98,27 @@ class FallbackAgent:
                 )
                 try:
                     return tool(**tool_kwargs)
-                except Exception as e:  # pragma: no cover - defensive path
-                    logger.error(
-                        "Tool invocation failed tool=%s error=%s",
+                except (TypeError, ValueError) as e:
+                    logger.warning(
+                        "Tool invocation failed with likely argument error. tool=%s error=%s",
                         tool_name,
                         e,
                         exc_info=True,
                     )
                     return ToolErrorResponse(
                         status="error",
-                        error_message=f"Tool '{tool_name}' raised an exception: {e}",
+                        error_message=f"Tool '{tool_name}' failed with invalid arguments: {e}",
+                    )
+                except Exception as e:  # pragma: no cover - defensive path
+                    logger.error(
+                        "Tool invocation failed with an unexpected error. tool=%s error=%s",
+                        tool_name,
+                        e,
+                        exc_info=True,
+                    )
+                    return ToolErrorResponse(
+                        status="error",
+                        error_message=f"Tool '{tool_name}' raised an unexpected exception: {e}",
                     )
         logger.warning("Tool not found tool=%s", tool_name)
         return ToolErrorResponse(

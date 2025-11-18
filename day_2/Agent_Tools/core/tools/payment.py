@@ -1,15 +1,21 @@
+
 from __future__ import annotations
 
 import logging
 
-try:
-    import requests  # type: ignore[import-not-found]
-except ImportError:  # pragma: no cover
-    requests = None  # type: ignore[assignment]
+
 
 from ..tool_types import ToolResponse
 
 logger = logging.getLogger(__name__)
+
+# Fee structure for payment methods
+_FEE_DATABASE = {
+    "platinum credit card": 0.02,  # 2%
+    "gold debit card": 0.035,  # 3.5%
+    "bank transfer": 0.01,  # 1%
+}
+
 
 # Pay attention to the docstring, type hints, and return value.
 def get_fee_for_payment_method(method: str) -> ToolResponse:
@@ -28,17 +34,14 @@ def get_fee_for_payment_method(method: str) -> ToolResponse:
         Success: {"status": "success", "fee_percentage": 0.02}
         Error: {"status": "error", "error_message": "Payment method not found"}
     """
-    # This simulates looking up a company's internal fee structure.
-    fee_database = {
-        "platinum credit card": 0.02,  # 2%
-        "gold debit card": 0.035,  # 3.5%
-        "bank transfer": 0.01,  # 1%
-    }
+    method_key = method.lower()
+    fee = _FEE_DATABASE.get(method_key)
 
-    fee = fee_database.get(method.lower())
     if fee is not None:
+        logger.info("Fee lookup successful for method: %s", method)
         return {"status": "success", "fee_percentage": fee}
 
+    logger.warning("Fee lookup failed for method: %s", method)
     return {
         "status": "error",
         "error_message": f"Payment method '{method}' not found",

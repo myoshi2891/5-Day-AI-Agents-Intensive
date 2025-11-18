@@ -68,6 +68,7 @@ def get_root_agent() -> BaseAgent:
     """Get or create the root agent instance."""
     global _root_agent
     if _root_agent is None:
+        # Check if Agent class is not the FallbackAgent class itself
         if USE_ENHANCED_AGENT and Agent is not FallbackAgent:
             try:
                 _root_agent = _build_enhanced_agent()
@@ -86,6 +87,10 @@ def get_root_agent() -> BaseAgent:
     return _root_agent
 
 
+
+# Eagerly initialize the agent to expose a ready-to-use `root_agent` object
+# for the ADK CLI and for simplified notebook usage. This follows a common
+# pattern in the project where the agent module provides a pre-constructed agent.
 root_agent = get_root_agent()
 
 
@@ -97,13 +102,15 @@ def run_sample_conversion(query: str) -> None:
             responses = runner.run_debug(query)
             show_python_code_and_result(responses)
             return
-        except ClientError as exc:  # pragma: no cover - depends on quota
+        except Exception as exc:  # pragma: no cover - depends on quota
             logger.error(
-                "Enhanced agent run failed during sample conversion: %s", exc
+                "Enhanced agent run failed during sample conversion (%s): %s",
+                type(exc).__name__, exc
             )
     logger.warning(
         "Enhanced agent unavailable. Provide structured kwargs to the fallback agent."
     )
+
 
 
 if __name__ == "__main__":  # pragma: no cover

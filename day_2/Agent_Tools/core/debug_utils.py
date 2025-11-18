@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any
 
-def show_python_code_and_result(response) -> None:
+
+def show_python_code_and_result(response: Any) -> None:
     for i in range(len(response)):
         parts = response[i].content.parts
         if (

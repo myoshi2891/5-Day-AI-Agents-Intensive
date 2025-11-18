@@ -1,7 +1,11 @@
 """Core building blocks for the Agent Tools sample."""
 
 from .agents import FallbackAgent
-from .builders import build_enhanced_currency_agent, build_enhanced_runner
+from .builders import (
+    ENHANCED_INSTRUCTION,
+    build_enhanced_currency_agent,
+    build_enhanced_runner,
+)
 from .compat import BaseAgent, load_agent_class
 from .config import (
     CODE_EXEC_MODEL,
@@ -15,6 +19,7 @@ from .tools import get_exchange_rate, get_fee_for_payment_method
 
 __all__ = [
     "BaseAgent",
+    "ENHANCED_INSTRUCTION",
     "FallbackAgent",
     "build_enhanced_currency_agent",
     "build_enhanced_runner",

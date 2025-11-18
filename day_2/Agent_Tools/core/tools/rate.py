@@ -1,9 +1,10 @@
+
 from __future__ import annotations
 
-import logging
+# import logging
 from ..tool_types import ToolResponse
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 def get_exchange_rate(base_currency: str, target_currency: str) -> ToolResponse:
     """Looks up and returns the exchange rate between two currencies.
@@ -31,6 +32,11 @@ def get_exchange_rate(base_currency: str, target_currency: str) -> ToolResponse:
     }
 
     # Input validation and processing
+    if not base_currency or not target_currency:
+        return {
+            "status": "error",
+            "error_message": "Currency codes cannot be empty",
+        }
     base = base_currency.lower()
     target = target_currency.lower()
 
@@ -44,7 +50,8 @@ def get_exchange_rate(base_currency: str, target_currency: str) -> ToolResponse:
             "error_message": f"Unsupported currency pair: {base_currency}/{target_currency}",
         }
 
-print("✅ Exchange rate function created")
-print(f"💱 Test: {get_exchange_rate('USD', 'EUR')}")
-
 __all__ = ["get_exchange_rate"]
+
+if __name__ == "__main__":
+    print("✅ Exchange rate function created")
+    print(f"💱 Test: {get_exchange_rate('USD', 'EUR')}")

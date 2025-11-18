@@ -31,7 +31,7 @@ try:
     root_agent = build_enhanced_currency_agent()
     logger.info("Enhanced currency agent instantiated for ADK CLI.")
 except Exception as exc:  # pragma: no cover
-    logger.error("Failed to construct enhanced agent (%s). Using fallback.", exc)
+    logger.exception("Failed to construct enhanced agent. Using fallback.")
     root_agent = _build_fallback_agent()
 
 
