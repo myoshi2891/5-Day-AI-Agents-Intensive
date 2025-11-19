@@ -227,7 +227,16 @@ def cost_aware_image_request(
     approval_decision: Optional[str] = None,
 ) -> dict[str, Any]:
     """Request approval before issuing bulk image generations."""
-    if num_images <= max(1, BULK_IMAGE_THRESHOLD):
+    if num_images <= 0:
+        return {
+            "status": "rejected",
+            "message": (
+                f"Invalid num_images: {num_images}. "
+                "Please provide a positive integer."
+            ),
+        }
+
+    if num_images <= BULK_IMAGE_THRESHOLD:
         return {
             "status": "approved",
             "message": (
@@ -241,10 +250,9 @@ def cost_aware_image_request(
         return {
             "status": "pending",
             "message": (
-                f"Bulk image request ({num_images}) detected. "
-                "Ask the user to respond with 'APPROVE BULK' or 'REJECT BULK', "
-                "then call this tool again supplying the response via the "
-                "`approval_decision` argument."
+                f"Bulk image request ({num_images}) detected. Ask the user to respond "
+                "with 'APPROVE BULK' or 'REJECT BULK', then call this tool again "
+                "passing the response via the approval_decision argument."
             ),
         }
 
@@ -269,9 +277,8 @@ def cost_aware_image_request(
     return {
         "status": "pending",
         "message": (
-            "Invalid approval_decision provided. Please ask the user to respond "
-            "with 'APPROVE BULK' or 'REJECT BULK' and call the tool again with "
-            "that text."
+            "Invalid approval_decision provided. Please ask the user to reply with "
+            "'APPROVE BULK' or 'REJECT BULK' and call the tool again with that text."
         ),
     }
 
@@ -285,9 +292,9 @@ def get_root_agent() -> BaseAgent:
             "servers. Always call the cost_aware_image_request tool first when "
             "users request more than one image so that expensive bulk requests "
             "can be approved. If the tool returns status 'pending', ask the user "
-            "to reply with 'APPROVE BULK' or 'REJECT BULK' and call the tool "
-            "again supplying that response via the approval_decision argument. "
-            "Once approved, use the MCP image tool to create the images."
+            "to respond with 'APPROVE BULK' or 'REJECT BULK' and call the tool "
+            "again with that text via the approval_decision argument. Once "
+            "approved, use the MCP image tool to create the images."
         )
         _root_agent = Agent(
             model=build_model(),

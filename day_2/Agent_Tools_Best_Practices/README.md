@@ -40,7 +40,7 @@ shipping_agent = agents["shipping"]
 
 ### 🌐 MCP イメージサーバーとコスト承認
 
-`workflows/image.py` は複数の公開 MCP イメージサーバー（`@modelcontextprotocol/server-everything`、`@shroominic/image-tool`、`@modelcontextprotocol/server-stabilityai` など）を切り替え可能で、環境変数 `MCP_IMAGE_SERVER` に `everything` / `shroominic` / `stabilityai` を設定することで利用サーバーを選択できます。  
+`workflows/image.py` は複数の公開 MCP イメージサーバー（`@modelcontextprotocol/server-everything`、`@shroominic/image-tool`、`@modelcontextprotocol/server-stabilityai` など）を切り替え可能で、環境変数 `MCP_IMAGE_SERVER` に `everything` / `shroominic` / `stabilityai` を設定することで利用サーバーを選択できます（未設定の場合は `everything` が既定値）。  
 さらに `cost_aware_image_request` ツールを通して **1枚の画像は自動承認**、**複数枚 (>1) の場合は承認待ち**となり、ユーザーに「APPROVE BULK」もしくは「REJECT BULK」と入力してもらった文言を `approval_decision` 引数として再度ツールに渡すことで処理が進みます。これにより、UI にボタンが無い環境でもコストガードレールを保ったまま MCP サーバーを利用できます。
 
 -----
