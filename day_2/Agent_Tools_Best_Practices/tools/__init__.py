@@ -1,5 +1,23 @@
-"""Tool utilities for the Agent Tools Best Practices package."""
+"""Compatibility wrapper around the workflow modules."""
 
-from .image_agent import display_events, get_root_agent, root_agent, run_debug_session
+from ..workflows import (
+    get_image_agent,
+    get_shipping_agent,
+    image_display_events,
+    image_root_agent,
+    run_image_debug_session,
+    run_shipping_workflow,
+    run_shipping_workflow_sync,
+    shipping_root_agent,
+)
 
-__all__ = ["root_agent", "get_root_agent", "display_events", "run_debug_session"]
+__all__ = [
+    "image_display_events",
+    "get_image_agent",
+    "image_root_agent",
+    "run_image_debug_session",
+    "get_shipping_agent",
+    "shipping_root_agent",
+    "run_shipping_workflow",
+    "run_shipping_workflow_sync",
+]
