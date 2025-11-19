@@ -1,4 +1,4 @@
-"""Image agent builder that integrates the MCP Everything server."""
+"""Image agent builder that integrates MCP servers with cost approvals."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import base64
 import importlib
 import logging
 import mimetypes
+import os
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Protocol, Type, cast
 
@@ -17,7 +18,6 @@ try:
 except ImportError:
     if __package__:
         raise
-    from pathlib import Path
     import sys
 
     pkg_root = Path(__file__).resolve().parents[2]
@@ -32,11 +32,47 @@ except ImportError:
 
 from google.adk.agents.base_agent import BaseAgent as GoogleBaseAgent
 from google.adk.runners import InMemoryRunner
+from google.adk.tools.function_tool import FunctionTool
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from mcp import StdioServerParameters
 
 logger = logging.getLogger(__name__)
+
+BULK_IMAGE_THRESHOLD = 1  # Single image auto-approves; >1 requires approval
+
+MCP_IMAGE_SERVERS = {
+    "everything": {
+        "package": "@modelcontextprotocol/server-everything",
+        "tool_filter": ["getTinyImage"],
+        "description": "Reference server exposing sample image tools like getTinyImage.",
+    },
+    "shroominic": {
+        "package": "@shroominic/image-tool",
+        "tool_filter": ["generateImage"],
+        "description": "Playful Flux-based server suitable for quick sketches.",
+    },
+    "stabilityai": {
+        "package": "@modelcontextprotocol/server-stabilityai",
+        "tool_filter": ["text_to_image"],
+        "description": "Stability AI integration (requires API key configured).",
+    },
+}
+
+MCP_IMAGE_SERVER_KEY = os.getenv("MCP_IMAGE_SERVER", "everything").lower()
+if MCP_IMAGE_SERVER_KEY not in MCP_IMAGE_SERVERS:
+    logger.warning(
+        "Unknown MCP_IMAGE_SERVER=%s. Falling back to 'everything'.",
+        MCP_IMAGE_SERVER_KEY,
+    )
+    MCP_IMAGE_SERVER_KEY = "everything"
+
+SELECTED_MCP_SERVER = MCP_IMAGE_SERVERS[MCP_IMAGE_SERVER_KEY]
+logger.info(
+    "Using MCP image server '%s' (%s)",
+    MCP_IMAGE_SERVER_KEY,
+    SELECTED_MCP_SERVER["package"],
+)
 
 
 def _noop_display(*_args: Any, **_kwargs: Any) -> None:  # pragma: no cover
@@ -141,12 +177,12 @@ MCP_IMAGE_SERVER = McpToolset(
             command="npx",
             args=[
                 "-y",
-                "@modelcontextprotocol/server-everything",
+                SELECTED_MCP_SERVER["package"],
             ],
         ),
         timeout=30,
     ),
-    tool_filter=["getTinyImage"],
+    tool_filter=SELECTED_MCP_SERVER["tool_filter"],
 )
 
 
@@ -185,15 +221,82 @@ Agent: Type[BaseAgent] = _load_agent_class()
 _root_agent: Optional[BaseAgent] = None
 
 
+def cost_aware_image_request(
+    prompt: str,
+    num_images: int,
+    approval_decision: Optional[str] = None,
+) -> dict[str, Any]:
+    """Request approval before issuing bulk image generations."""
+    if num_images <= max(1, BULK_IMAGE_THRESHOLD):
+        return {
+            "status": "approved",
+            "message": (
+                f"Auto-approved single image request for '{prompt}'. "
+                "Feel free to call the MCP image tool."
+            ),
+        }
+
+    decision = (approval_decision or "").strip().lower()
+    if not decision:
+        return {
+            "status": "pending",
+            "message": (
+                f"Bulk image request ({num_images}) detected. "
+                "Ask the user to respond with 'APPROVE BULK' or 'REJECT BULK', "
+                "then call this tool again supplying the response via the "
+                "`approval_decision` argument."
+            ),
+        }
+
+    if decision in {"approve bulk", "approve", "approved", "yes"}:
+        return {
+            "status": "approved",
+            "message": (
+                f"Approved {num_images} images for '{prompt}'. "
+                "You may now call the MCP tool."
+            ),
+        }
+
+    if decision in {"reject bulk", "reject", "rejected", "no"}:
+        return {
+            "status": "rejected",
+            "message": (
+                f"Rejected {num_images} images for '{prompt}'. "
+                "Do not call the MCP server."
+            ),
+        }
+
+    return {
+        "status": "pending",
+        "message": (
+            "Invalid approval_decision provided. Please ask the user to respond "
+            "with 'APPROVE BULK' or 'REJECT BULK' and call the tool again with "
+            "that text."
+        ),
+    }
+
+
 def get_root_agent() -> BaseAgent:
     """Get or create the root agent instance."""
     global _root_agent
     if _root_agent is None:
+        instruction = (
+            "You are an image-generation specialist with access to multiple MCP "
+            "servers. Always call the cost_aware_image_request tool first when "
+            "users request more than one image so that expensive bulk requests "
+            "can be approved. If the tool returns status 'pending', ask the user "
+            "to reply with 'APPROVE BULK' or 'REJECT BULK' and call the tool "
+            "again supplying that response via the approval_decision argument. "
+            "Once approved, use the MCP image tool to create the images."
+        )
         _root_agent = Agent(
             model=build_model(),
             name="image_agent",
-            instruction="Use the MCP Tool to generate images for user queries",
-            tools=[MCP_IMAGE_SERVER],
+            instruction=instruction,
+            tools=[
+                FunctionTool(func=cost_aware_image_request),
+                MCP_IMAGE_SERVER,
+            ],
         )
     return _root_agent
 
@@ -215,4 +318,10 @@ def run_debug_session(
     return asyncio.run(runner.run_debug(prompt, verbose=verbose))
 
 
-__all__ = ["display_events", "get_root_agent", "root_agent", "run_debug_session"]
+__all__ = [
+    "cost_aware_image_request",
+    "display_events",
+    "get_root_agent",
+    "root_agent",
+    "run_debug_session",
+]

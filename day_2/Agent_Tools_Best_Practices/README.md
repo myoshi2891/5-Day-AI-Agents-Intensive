@@ -1,6 +1,7 @@
 # 🛠️ Agent Tools Best Practices
 
-このパッケージには、Google ADK の長時間実行ワークフロー（`adk_request_confirmation` を使った承認フロー）を体験できる Shipping Agent が含まれています。`agent.py` は `workflows/shipping.py` の実装を呼び出し、ADK (`root_agent`) からも直接利用できます。
+このパッケージには、複数の MCP 画像サーバーを切り替えながらコスト承認フローを付与した **Image Agent** と、Google ADK の長時間実行ワークフロー（`adk_request_confirmation` を使った承認フロー）を体験できる **Shipping Agent** が含まれています。  
+ADK (`root_agent`) からデフォルトでロードされるのは Image Agent ですが、パッケージ自体は Image / Shipping 両方のエージェントを同時に取り込みできます。必要に応じてそれぞれの `root_agent` を読み込み、ひとつのランタイム内で2つのモジュールを併用することも可能です（下記参照）。
 
 -----
 
@@ -8,9 +9,9 @@
 
 | パス | 説明 |
 | :--- | :--- |
-| `agent.py` | メインのエントリーポイント。Shipping Agent ワークフローを呼び出します。 |
+| `agent.py` | Shipping Agent ワークフローを CLI でデモするエントリーポイント。 |
 | `agents/` | `google.adk`が利用できない場合に使用される軽量なフォールバックエージェント。 |
-| `workflows/` | `image.py`（MCPイメージ生成デモ）と `shipping.py`（承認付きワークフローデモ）を収録。 |
+| `workflows/` | `image.py`（MCPイメージ生成 + コスト承認デモ）と `shipping.py`（承認付きワークフローデモ）を収録。 |
 | `tools/` | 既存コードとの互換レイヤー。内部的には `workflows/` を再エクスポートしています。 |
 | `tool_types.py` | ツール応答のための共有`TypedDict`エイリアス。 |
 | `config.py` | Geminiモデル/リトライ設定を一元管理するヘルパー。 |
@@ -26,7 +27,21 @@ python agent.py
 
 起動すると `run_shipping_workflow_sync()` が呼び出され、コンテナ数に応じて承認が必要になるデモが自動で実行されます。`auto_approve` などの挙動は `workflows/shipping.py` 内で調整できます。
 
-インポートされた場合（例: `adk serve`によるインポート）、`root_agent` として Shipping Agent が公開されるだけで、デモワークフローは起動しません（アプリ側で任意の制御を実装できます）。
+ADK Web などで `day_2/Agent_Tools_Best_Practices` を指定した場合は **Image Agent** が `root_agent` として公開され、1枚なら自動承認、複数枚なら承認待ち→再開というフローを確認できます。Shipping Agent を ADK で使いたい場合は、起動前に `export ADK_AGENT_MODULE=day_2.Agent_Tools_Best_Practices.workflows.shipping` を設定してください。また、自前コードから同時に利用する場合は `get_available_agents()` を呼び出し、ひとつのプロセス内で2つのエージェントを持たせることもできます。
+
+```python
+from day_2.Agent_Tools_Best_Practices import get_available_agents
+
+agents = get_available_agents()
+image_agent = agents["image"]
+shipping_agent = agents["shipping"]
+# ここから単一ランタイムで image / shipping 両方のエージェントを扱える
+```
+
+### 🌐 MCP イメージサーバーとコスト承認
+
+`workflows/image.py` は複数の公開 MCP イメージサーバー（`@modelcontextprotocol/server-everything`、`@shroominic/image-tool`、`@modelcontextprotocol/server-stabilityai` など）を切り替え可能で、環境変数 `MCP_IMAGE_SERVER` に `everything` / `shroominic` / `stabilityai` を設定することで利用サーバーを選択できます。  
+さらに `cost_aware_image_request` ツールを通して **1枚の画像は自動承認**、**複数枚 (>1) の場合は承認待ち**となり、ユーザーに「APPROVE BULK」もしくは「REJECT BULK」と入力してもらった文言を `approval_decision` 引数として再度ツールに渡すことで処理が進みます。これにより、UI にボタンが無い環境でもコストガードレールを保ったまま MCP サーバーを利用できます。
 
 -----
 
