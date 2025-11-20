@@ -22,8 +22,6 @@ APP_NAME = "default"
 USER_ID = os.getenv("AGENT_SESSIONS_USER_ID", "default")
 MODEL_NAME = DEFAULT_MODEL_NAME
 
-print("✅ ADK components imported successfully.")
-
 
 def check_data_in_db(*, summarize: bool = False) -> list[tuple]:
     """Inspect the underlying SQLite DB for debugging."""
@@ -76,8 +74,6 @@ async def run_session(
                 print(f"{MODEL_NAME} > ", part.text)
 
 
-print("✅ Helper functions defined.")
-
 root_agent = Agent(
     model=Gemini(model=MODEL_NAME, retry_options=retry_config),
     name="text_chat_bot",
@@ -86,10 +82,18 @@ root_agent = Agent(
 
 runner = Runner(agent=root_agent, app_name=APP_NAME, session_service=session_service)
 
-print("✅ Stateful agent initialized!")
-print(f"   - Application: {APP_NAME}")
-print(f"   - User: {USER_ID}")
-print(f"   - Using persistent DB: {DEFAULT_DB_URL}")
+
+def initialize(verbose: bool = True) -> None:
+    """Optionally log initialization details for the stateful app."""
+
+    if not verbose:
+        return
+    print("✅ ADK components imported successfully.")
+    print("✅ Helper functions defined.")
+    print("✅ Stateful agent initialized!")
+    print(f"   - Application: {APP_NAME}")
+    print(f"   - User: {USER_ID}")
+    print(f"   - Using persistent DB: {DEFAULT_DB_URL}")
 
 
 __all__ = [
@@ -101,4 +105,5 @@ __all__ = [
     "root_agent",
     "run_session",
     "check_data_in_db",
+    "initialize",
 ]

@@ -9,7 +9,7 @@ from google.adk.models.google_llm import Gemini
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
-from ..agent import APP_NAME, run_session
+from ..apps import stateful as _stateful
 from ..config import DEFAULT_MODEL_NAME, retry_config
 
 
@@ -23,23 +23,31 @@ def build_inmemory_runner(
         name="text_chat_bot",
         description="A text chatbot (in-memory demo)",
     )
-    runner = Runner(agent=agent, app_name=APP_NAME, session_service=service)
+    runner = Runner(agent=agent, app_name=_stateful.APP_NAME, session_service=service)
     return runner, service
 
 
 async def demo_inmemory_session() -> None:
     """Kick off a quick interactive demo using the in-memory session backend."""
-    runner, service = build_inmemory_runner()
-    await run_session(
-        runner,
-        [
-            "Hi, I am Sam! What is the capital of United States?",
-            "Hello! What is my name?",
-        ],
-        session_name="inmemory-demo-session",
-        session_service_override=service,
-    )
+    try:
+        runner, service = build_inmemory_runner()
+        await _stateful.run_session(
+            runner,
+            [
+                "Hi, I am Sam! What is the capital of United States?",
+                "Hello! What is my name?",
+            ],
+            session_name="inmemory-demo-session",
+            session_service_override=service,
+        )
+    except Exception as exc:
+        print(f"Demo failed: {exc}")
+        raise
 
 
 if __name__ == "__main__":
-    asyncio.run(demo_inmemory_session())
+    try:
+        asyncio.run(demo_inmemory_session())
+    except Exception as exc:
+        print(f"Demo failed: {exc}")
+        raise

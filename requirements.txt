@@ -4,5 +4,5 @@ pandas>=1.3.0
 matplotlib>=3.4.0
 numpy>=1.21.0
 ipywidgets>=7.6.0
-google-adk==<version>
+google-adk=1.18.0
 opentelemetry-instrumentation-google-genai>=0.40b0

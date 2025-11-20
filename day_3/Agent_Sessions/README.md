@@ -17,6 +17,7 @@
   * `database.py` - SQLiteをバックエンドとするセッションサービスを構築するためのユーティリティと、デバッガ`inspect_db_events()`。
 * `demos/`
   * `inmemory.py` - `InMemorySessionService`（永続性なし）でエージェントを実行するためのオプションのスクリプト。
+  * `session_tools.py` - セッションステートにユーザー情報を保存するデモのエージェント/ランナー/ユーティリティを提供。
 * `my_agent_data.db` - 永続セッションサービスによってオンデマンドで作成されるSQLiteファイル。
 * `requirements.txt` - Notebook/CLIの依存関係。
 * `__init__.py` - `agent.py`とストレージヘルパーを反映した公開APIエクスポート。
@@ -33,7 +34,7 @@ adk web --session_service_uri sqlite:///day_3/Agent_Sessions/my_agent_data.db ./
 
 ### 🧪 Session-Toolsデモを試す
 
-`agent.py` にはユーザー名/国をスコープ付きセッションステートに保存するデモが含まれています。
+`demos/session_tools.py` にはユーザー名/国をスコープ付きセッションステートに保存するデモが含まれています（`agent.py` から再エクスポートされます）。
 
 #### クロスセッション共有の確認手順
 
@@ -70,7 +71,8 @@ adk web --session_service_uri sqlite:///day_3/Agent_Sessions/my_agent_data.db ./
 
 #### 複数ユーザー／ポートでの起動
 
-* `apps/stateful.py` の `USER_ID` は `AGENT_SESSIONS_USER_ID` 環境変数で上書きできます。ユーザースコープを分離したい場合は、ADKをユーザーごとに別の値で起動します。
+* `apps/stateful.py` の `USER_ID` は `AGENT_SESSIONS_USER_ID` 環境変数で上書きできます。
+ユーザースコープを分離したい場合は、ADKをユーザーごとに別の値で起動します（`agent.py` の再エクスポートにも反映されます）。
 * 同じマシンで複数の ADK Web を動かすとポートが競合しやすいので、`--port` で明示的に割り当ててください。
 
 例：

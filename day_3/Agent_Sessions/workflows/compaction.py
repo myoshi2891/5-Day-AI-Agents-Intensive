@@ -30,7 +30,12 @@ research_runner_compacting = Runner(
     session_service=compaction_session_service,
 )
 
-print("✅ Research App upgraded with Events Compaction!")
+
+def describe_compaction_setup(verbose: bool = True) -> None:
+    """Optionally log that the compaction-aware app is ready."""
+
+    if verbose:
+        print("✅ Research App upgraded with Events Compaction!")
 
 
 async def log_compaction_summary(session_id: str = "compaction_demo") -> None:
@@ -89,4 +94,5 @@ __all__ = [
     "research_runner_compacting",
     "log_compaction_summary",
     "run_compaction_demo",
+    "describe_compaction_setup",
 ]

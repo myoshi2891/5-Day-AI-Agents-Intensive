@@ -59,9 +59,10 @@ def _hydrate_compaction(compaction: EventCompaction | dict | None) -> EventCompa
         return None
 
     compaction_dict = dict(compaction)
-    compacted_content = compaction_dict.get("compacted_content") or compaction_dict.get(
-        "compactedContent"
-    )
+    if "compacted_content" in compaction_dict:
+        compacted_content = compaction_dict["compacted_content"]
+    else:
+        compacted_content = compaction_dict.get("compactedContent")
     if isinstance(compacted_content, dict):
         compaction_dict["compacted_content"] = types.Content.model_validate(compacted_content)
 
