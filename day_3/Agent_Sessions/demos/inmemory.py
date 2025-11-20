@@ -9,11 +9,13 @@ from google.adk.models.google_llm import Gemini
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
-from .agent import APP_NAME, run_session
-from .config import DEFAULT_MODEL_NAME, retry_config
+from ..agent import APP_NAME, run_session
+from ..config import DEFAULT_MODEL_NAME, retry_config
 
 
-def build_inmemory_runner(model_name: str = DEFAULT_MODEL_NAME) -> tuple[Runner, InMemorySessionService]:
+def build_inmemory_runner(
+    model_name: str = DEFAULT_MODEL_NAME,
+) -> tuple[Runner, InMemorySessionService]:
     """Return a runner and service combo that keeps history purely in memory."""
     service = InMemorySessionService()
     agent = Agent(
