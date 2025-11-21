@@ -99,18 +99,13 @@ class AppComponents:
     memory_plugin: BasePlugin
     root_agent: LlmAgent
     runner: Runner
-    app: object
+    app: App
 
     def build_memory_event(self, author: str, text: str) -> Event:
         return Event(
             author=author,
             content=types.Content(role=author, parts=[types.Part(text=text)]),
         )
-
-@dataclass(slots=True)
-class DemoServices(AppComponents):
-    pass
-
 
 def create_components() -> AppComponents:
     """Create shared services, runner, and app with consolidation enabled."""

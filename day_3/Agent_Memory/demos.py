@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Iterable
 
 from google.adk.events import Event
+from google.adk.runners import Runner
 from google.adk.sessions import Session
 from google.genai import types
 
@@ -16,12 +16,12 @@ async def ensure_session(components: AppComponents, session_id: str, user_id: st
         return await components.session_service.create_session(
             app_name=components.app_name, user_id=user_id, session_id=session_id
         )
-    except Exception:
+    except Exception as exc:
         session = await components.session_service.get_session(
             app_name=components.app_name, user_id=user_id, session_id=session_id
         )
         if session is None:
-            raise RuntimeError(f"Session '{session_id}' does not exist.")
+            raise RuntimeError(f"Session '{session_id}' could not be created.") from exc
         return session
 
 async def run_session(

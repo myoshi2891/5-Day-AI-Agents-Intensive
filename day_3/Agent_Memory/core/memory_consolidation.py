@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from difflib import SequenceMatcher
 from typing import Any
 
 from google.adk.events import Event
@@ -181,7 +182,7 @@ class MemoryConsolidator:
                 if not (memory.content and memory.content.parts):
                     continue
                 for part in memory.content.parts:
-                    if part.text and text.lower() in part.text.lower():
+                    if part.text and self._is_similar(text, part.text):
                         duplicate = True
                         break
                 if duplicate:
@@ -189,5 +190,10 @@ class MemoryConsolidator:
             if not duplicate:
                 unique.append(fact)
         return unique
+
+    @staticmethod
+    def _is_similar(candidate: str, existing: str, threshold: float = 0.85) -> bool:
+        """Return True when the statements are similar enough to treat as duplicates."""
+        return SequenceMatcher(None, candidate.lower(), existing.lower()).ratio() >= threshold
 
 __all__ = ["MemoryConsolidator"]
