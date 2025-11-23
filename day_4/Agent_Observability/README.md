@@ -1,65 +1,95 @@
-# Agent Observability
+# Agent Observability（エージェントの可観測性）
 
-This refactored project demonstrates how to monitor Google ADK agents with a modular layout. Each layer (logging, tools, agents, plugins, runner, and entry point) is isolated so you can reuse or swap components without rewriting the rest of the stack.
+このリファクタリングされたプロジェクトは、モジュール化されたレイアウトで Google ADK エージェントを監視する方法を示しています。各レイヤー（ロギング、ツール、エージェント、プラグイン、ランナー、エントリーポイント）は分離されているため、スタックの残りの部分を書き直すことなく、コンポーネントを再利用または交換できます。
 
-## Directory layout
+-----
 
-```
+## 📂 ディレクトリ構成
+
+```text
 Agent_Observability/
-├── agent.py                     # Entry point
+├── agent.py                     # エントリーポイント + root_agentの遅延エクスポート
 ├── agent_observability/
-│   ├── __init__.py              # Convenience exports
-│   ├── agents.py                # Agent factory helpers
-│   ├── config.py                # Constants and retry settings
-│   ├── logging_utils.py         # Log cleanup + configuration
-│   ├── plugins.py               # Custom observability plugin
-│   ├── runner.py                # Runner + execution helpers
-│   └── tools.py                 # Domain specific tools
+│   ├── __init__.py              # 利便性のためのエクスポート
+│   ├── agents.py                # エージェントファクトリのヘルパー
+│   ├── config.py                # 定数とリトライ設定
+│   ├── logging_utils.py         # ログのクリーンアップ + 設定
+│   ├── plugins.py               # カスタムのロギング + カウンタープラグイン
+│   ├── runner.py                # ランナー + 実行ヘルパー
+│   └── tools.py                 # ドメイン固有のツール
 └── requirements.txt
 ```
 
-## Execution flow
+-----
 
-1. **Logging setup (`logging_utils.configure_logging`)**
-   - Deletes stale `logger.log`, `web.log`, and `tunnel.log` so every run starts clean.
-   - Configures structured logging (filename/line/level/message) and routes debug logs to `logger.log`.
+## 🛠️ 実行フロー
 
-2. **Configuration (`config.py`)**
-   - Centralizes shared constants such as the Gemini model name, retry policy, and default natural language query.
-   - Exposes `RETRY_CONFIG` so both search and research agents stay in sync when the API policy changes.
+1. **ロギングのセットアップ (`logging_utils.configure_logging`)**
 
-3. **Domain tools (`tools.count_papers`)**
-   - Validates that every search result is a string before counting it, raising a descriptive error when malformed data is passed in by the agent.
-   - Keeps the business logic (counting returned papers) separated from orchestration.
+      * 古い `logger.log`、`web.log`、`tunnel.log` の削除を試み、ファイルが削除できない場合は分かりやすい警告を表示します（クリーンアップ中のクラッシュを防ぎます）。
+      * 構造化ロギング（ファイル名/行/レベル/メッセージ）を設定し、デバッグログを `logger.log` にルーティングします。
 
-4. **Agent factory (`agents.py`)**
-   - `create_google_search_agent` wires Google Search into an ADK agent that returns raw search snippets.
-   - `create_research_agent` receives that search agent via `AgentTool`, invokes it for candidate papers, and then uses the `count_papers` tool to report both the list and the total.
+2. **設定 (`config.py`)**
 
-5. **Plugins (`plugins.CountInvocationPlugin`)**
-   - Implements two callbacks to track how many agent/model invocations occur per run.
-   - Logs the counters, adding lightweight telemetry beyond the standard ADK `LoggingPlugin` output.
+      * Gemini モデル名、リトライポリシー、デフォルトの自然言語クエリなどの共有定数を一元管理します。
+      * `RETRY_CONFIG` を公開し、API ポリシーが変更されたときに検索エージェントとリサーチエージェントの両方が同期を保てるようにします。
 
-6. **Runner (`runner.build_runner` and `run_observability_demo`)**
-   - Assembles the agents and plugins into an `InMemoryRunner`, ensuring every execution automatically includes `LoggingPlugin` plus the custom counter plugin.
-   - `run_observability_demo` prints a short status banner, executes `runner.run_debug`, and streams rich traces to stdout.
+3. **ドメインツール (`tools.count_papers`)**
 
-7. **Entry point (`agent.py`)**
-   - Calls `configure_logging`, resolves the query (prioritizing CLI argument or the `AGENT_QUERY` env var, falling back to `DEFAULT_QUERY`), and awaits `run_observability_demo`.
-   - Keeps top-level logic tiny so other scripts/tests can import `agent_observability` and reuse the same factories.
+      * 実際の文字列のシーケンスのみを受け入れます（文字列のみでは拒否される）。これにより、カウントが文字数ではなく論文の数と一致することを保証します。
+      * ビジネスロジック（返された論文のカウント）をオーケストレーションから分離します。
 
-## Running the demo
+4. **エージェントファクトリ (`agents.py`)**
 
-From the repository root:
+      * `create_google_search_agent` は、Google Search を生の検索スニペットを返す ADK エージェントに接続します。
+      * `create_research_agent` は、`AgentTool` 経由でその検索エージェントを受け取り、候補となる論文を検索するためにそれを呼び出し、
+      `count_papers` を呼び出し、最終的な応答で各論文を箇条書きでリストアップし、その後に **`Total papers found: X`** を含めることを強制します。
+
+5. **プラグイン (`plugins.CountInvocationPlugin`, `ConversationTracePlugin`)**
+
+      * `CountInvocationPlugin` は、非同期ロックを使用してエージェント/モデルの呼び出し回数を追跡し、並行するコールバックでも正確さを保ちます。
+      * `ConversationTracePlugin` は `runner.run_debug()` の出力（セッションバナー + `User > …` + エージェントの応答）をミラーリングするため、
+      ADK Web のログが CLI と一致し、デフォルトのデバッグセッションでの重複を自動的に抑制します。
+
+6. **ランナー (`runner.build_runner` および `run_observability_demo`)**
+
+      * エージェントとプラグインを `InMemoryRunner` に組み立て、すべての実行に `ConversationTracePlugin`、標準の `LoggingPlugin`、
+      および `CountInvocationPlugin` が含まれるようにします。
+      * `run_observability_demo` は短いステータスバナーを出力し、`runner.run_debug` を実行し、トランスクリプトと ADK インストゥルメンテーションを並行してストリームします。
+
+7. **エントリーポイント (`agent.py`)**
+
+      * `configure_logging` を呼び出し、クエリを解決し（CLI 引数または `AGENT_QUERY` 環境変数を優先し、
+      `DEFAULT_QUERY` にフォールバックします）、`run_observability_demo` を待ちます。
+      * `get_root_agent()` と `__getattr__` を介して遅延 `root_agent` を公開し、ADK Web（`adk web day_4`）がインポート時間を低く保ちながらモジュールをロードできるようにします。
+
+-----
+
+## ▶️ デモの実行
+
+リポジトリのルートから実行します。
 
 ```bash
 python day_4/Agent_Observability/agent.py
 ```
 
-Optionally override the default research topic:
+オプションとして、デフォルトのリサーチテーマを上書きできます。
 
 ```bash
 AGENT_QUERY="Find papers on constitutional AI" python day_4/Agent_Observability/agent.py
 ```
 
-The command will log structured traces to `logger.log` while also echoing the plugin output in the terminal.
+このコマンドは、構造化されたトレースを `logger.log` に記録しながら、トランスクリプト形式の行と `[logging_plugin]` の診断情報の両方をターミナルに出力します。
+
+-----
+
+## 🌐 ADK Web での使用
+
+```bash
+adk web day_4
+```
+
+UI で **`Agent_Observability`** を選択し、「Find recent papers on quantum computing.（量子コンピューティングに関する最近の論文を探して。）」のようなプロンプトを発行します。
+遅延 `root_agent` のエクスポートにより、ADK Web はエージェントパッケージを安全にロードし、同じロギング設定を再利用し、トランスクリプトと詳細なプラグイン出力をサーバーログに表示できます。
+
+-----

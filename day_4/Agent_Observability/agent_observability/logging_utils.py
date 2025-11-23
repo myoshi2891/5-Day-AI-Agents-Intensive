@@ -11,9 +11,13 @@ from .config import LOG_FILE_NAME, LOG_FILES, LOG_FORMAT
 
 def _cleanup_logs(log_files: Iterable[str]) -> None:
     for log_file in log_files:
-        if os.path.exists(log_file):
+        try:
             os.remove(log_file)
             print(f"🧹 Cleaned up {log_file}")
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            print(f"⚠️  Could not delete {log_file}: {exc}")
 
 
 def configure_logging(clear_logs: bool = True) -> None:

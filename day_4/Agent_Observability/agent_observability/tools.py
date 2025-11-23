@@ -7,7 +7,7 @@ from typing import Sequence
 
 def count_papers(papers: list[str]) -> int:
     """Count validated papers returned by the search agent."""
-    if not isinstance(papers, Sequence):
+    if not isinstance(papers, Sequence) or isinstance(papers, str):
         raise ValueError("papers must be a sequence of strings")
 
     invalid_items = [paper for paper in papers if not isinstance(paper, str)]

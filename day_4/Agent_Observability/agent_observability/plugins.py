@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Optional, Set
 
@@ -19,20 +20,24 @@ class CountInvocationPlugin(BasePlugin):
     def __init__(self) -> None:
         super().__init__(name="count_invocation")
         self.agent_count = 0
-        self.tool_count = 0
         self.llm_request_count = 0
+        self._lock = asyncio.Lock()
 
     async def before_agent_callback(
         self, *, agent: BaseAgent, callback_context: CallbackContext
     ) -> None:
-        self.agent_count += 1
-        logging.info("[Plugin] Agent run count: %s", self.agent_count)
+        async with self._lock:
+            self.agent_count += 1
+            current_count = self.agent_count
+        logging.info("[Plugin] Agent run count: %s", current_count)
 
     async def before_model_callback(
         self, *, callback_context: CallbackContext, llm_request: LlmRequest
     ) -> None:
-        self.llm_request_count += 1
-        logging.info("[Plugin] LLM request count: %s", self.llm_request_count)
+        async with self._lock:
+            self.llm_request_count += 1
+            current_count = self.llm_request_count
+        logging.info("[Plugin] LLM request count: %s", current_count)
 
 
 class ConversationTracePlugin(BasePlugin):
@@ -42,6 +47,7 @@ class ConversationTracePlugin(BasePlugin):
         super().__init__(name="conversation_trace")
         self._root_agent_name = root_agent_name
         self._seen_sessions: Set[str] = set()
+        self._lock = asyncio.Lock()
 
     async def on_user_message_callback(
         self,
@@ -56,9 +62,13 @@ class ConversationTracePlugin(BasePlugin):
         ):
             return None
 
-        session_id = invocation_context.session.id
-        if session_id not in self._seen_sessions:
-            self._seen_sessions.add(session_id)
+        async with self._lock:
+            session_id = invocation_context.session.id
+            first_visit = session_id not in self._seen_sessions
+            if first_visit:
+                self._seen_sessions.add(session_id)
+
+        if first_visit:
             print(f"\n ### Created new session: {session_id}")
         else:
             print(f"\n ### Continue session: {session_id}")
