@@ -1,0 +1,12 @@
+{
+  "eval_set_id": "movie_night_user_sim",
+  "eval_cases": [
+    {
+      "eval_id": "movie_night_user_sim",
+      "conversationScenario": {
+        "startingPrompt": "You are preparing the house for a cozy movie night and want the assistant to orchestrate multiple smart devices for you.",
+        "conversationPlan": "1. Ask the assistant to dim the living room lights and turn on the floor lamp near the couch.\n2. Once acknowledged, request that the fireplace be turned on for extra ambience.\n3. Finally, ask the assistant to switch off the kitchen lights because everyone will be in the living room.\n4. Throughout the conversation, refer back to previous actions to ensure the assistant remembers the context."
+      }
+    }
+  ]
+}
