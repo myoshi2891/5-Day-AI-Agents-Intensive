@@ -2,33 +2,37 @@ from google.adk.agents import LlmAgent
 from google.adk.models.google_llm import Gemini
 
 from google.genai import types
+
+
+def print_evaluation_guide() -> None:
+    """Display evaluation results analysis guide."""
+    print("📊 Understanding Evaluation Results:")
+    print()
+    print("🔍 EXAMPLE ANALYSIS:")
+    print()
+    print("Test Case: living_room_light_on")
+    print("  ❌ response_match_score: 0.45/0.80")
+    print("  ✅ tool_trajectory_avg_score: 1.0/1.0")
+    print()
+    print("📈 What this tells us:")
+    print("• TOOL USAGE: Perfect - Agent used correct tool with correct parameters")
+    print("• RESPONSE QUALITY: Poor - Response text too different from expected")
+    print("• ROOT CAUSE: Agent's communication style, not functionality")
+    print()
+    print("🎯 ACTIONABLE INSIGHTS:")
+    print("1. Technical capability works (tool usage perfect)")
+    print("2. Communication needs improvement (response quality failed)")
+    print("3. Fix: Update agent instructions for clearer language or constrained response.")
+    print()
+
+
 # Configure Model Retry on errors
 retry_config = types.HttpRetryOptions(
-    attempts=5,  # Maximum retry attempts
-    exp_base=7,  # Delay multiplier
+    attempts=3,  # Maximum retry attempts
+    exp_base=2,  # Delay multiplier (standard exponential backoff)
     initial_delay=1,
     http_status_codes=[429, 500, 503, 504],  # Retry on these HTTP errors
 )
-
-# Analyzing evaluation results - the data science approach
-print("📊 Understanding Evaluation Results:")
-print()
-print("🔍 EXAMPLE ANALYSIS:")
-print()
-print("Test Case: living_room_light_on")
-print("  ❌ response_match_score: 0.45/0.80")
-print("  ✅ tool_trajectory_avg_score: 1.0/1.0")
-print()
-print("📈 What this tells us:")
-print("• TOOL USAGE: Perfect - Agent used correct tool with correct parameters")
-print("• RESPONSE QUALITY: Poor - Response text too different from expected")
-print("• ROOT CAUSE: Agent's communication style, not functionality")
-print()
-print("🎯 ACTIONABLE INSIGHTS:")
-print("1. Technical capability works (tool usage perfect)")
-print("2. Communication needs improvement (response quality failed)")
-print("3. Fix: Update agent instructions for clearer language or constrained response.")
-print()
 
 def set_device_status(location: str, device_id: str, status: str) -> dict:
     """Sets the status of a smart home device.
@@ -60,3 +64,7 @@ root_agent = LlmAgent(
     When users ask about device capabilities, tell them about all the amazing features you can control.""",
     tools=[set_device_status],
 )
+
+
+if __name__ == "__main__":
+    print_evaluation_guide()

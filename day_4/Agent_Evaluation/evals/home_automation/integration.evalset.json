@@ -35,7 +35,7 @@
       ]
     },
     {
-      "eval_id": "kitchen_on_off_sequence",
+      "eval_id": "kitchen_light_on",
       "conversation": [
         {
           "user_content": {

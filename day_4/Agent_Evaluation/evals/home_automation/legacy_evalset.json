@@ -18,7 +18,7 @@
           "final_response": {
             "parts": [
               {
-                "text": "Successfully set the floor lamp in the living room to on."
+                "text": "The floor lamp in the living room has been turned on."
               }
             ],
             "role": "model"
@@ -58,11 +58,7 @@
             "role": "user"
           },
           "final_response": {
-            "parts": [
-              {
-                "text": "Successfully set the ceiling light in the kitchen to on."
-              }
-            ],
+            "parts": [],
             "role": "model"
           },
           "intermediate_data": {
@@ -102,7 +98,7 @@
           "final_response": {
             "parts": [
               {
-                "text": "The desk lamp is off"
+                "text": "The desk lamp in the office is now on."
               }
             ],
             "role": "model"
@@ -173,7 +169,7 @@
           "final_response": {
             "parts": [
               {
-                "text": "The desk lamp in the office has been turned on."
+                "text": "The desk lamp in the office is now on."
               }
             ],
             "role": "model"
@@ -236,7 +232,7 @@
           "user_content": {
             "parts": [
               {
-                "text": "\"Please turn off the TV in the garage\""
+                "text": "Please turn off the TV in the garage"
               }
             ],
             "role": "user"
@@ -244,7 +240,7 @@
           "final_response": {
             "parts": [
               {
-                "text": "You got it. The TV in the garage is now off."
+                "text": "I have turned off the TV in the garage."
               }
             ],
             "role": "model"
@@ -312,6 +308,10 @@
             ],
             "role": "user"
           },
+          "final_response": {
+            "parts": [],
+            "role": "model"
+          },
           "intermediate_data": {
             "invocation_events": [
               {
@@ -334,7 +334,7 @@
                         "id": "adk-22f3c8ae-d3e4-4912-b4a3-4f84ec6530c5",
                         "args": {
                           "status": "ON",
-                          "device_id": "all",
+                          "device_id": "security system",
                           "location": "all"
                         },
                         "name": "set_device_status"
@@ -364,7 +364,7 @@
                         "name": "set_device_status",
                         "response": {
                           "success": true,
-                          "message": "Successfully set the all in all to on."
+                          "message": "Successfully set the security system in all to on."
                         }
                       }
                     }
