@@ -8,7 +8,7 @@ MODEL_NAME = "gemini-2.0-flash-lite"
 # Retry strategy reused by every agent to handle transient GenAI errors
 RETRY_CONFIG = types.HttpRetryOptions(
     attempts=5,
-    exp_base=7,
+    exp_base=2,
     initial_delay=1,
     http_status_codes=[429, 500, 503, 504],
 )

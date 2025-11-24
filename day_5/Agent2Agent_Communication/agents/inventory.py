@@ -22,7 +22,7 @@ def get_inventory_status(product_name: str) -> str:
     if product_lower in inventory:
         info = inventory[product_lower]
         return (
-            f"Inventory Report: {product_name.title()} - {info['status']} "
+            f"Inventory Report: {product_lower.title()} - {info['status']} "
             f"({info['stock']} units). Next restock: {info['restock']}."
         )
 

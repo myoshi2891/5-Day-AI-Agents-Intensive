@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import json
 import os
 import subprocess
@@ -33,11 +34,6 @@ from google.adk.sessions import InMemorySessionService  # noqa: E402
 from google.genai import types  # noqa: E402
 
 if __package__:
-    from .agents import (  # type: ignore[attr-defined]
-        create_inventory_agent,
-        create_product_catalog_agent,
-        create_shipping_agent,
-    )
     from .config import (  # type: ignore[attr-defined]
         A2A_LABELS,
         A2A_PORTS,
@@ -47,11 +43,6 @@ if __package__:
         RETRY_CONFIG,
     )
 else:  # Fallback when running the script directly (python path/to/agent.py)
-    from day_5.Agent2Agent_Communication.agents import (  # noqa: E402
-        create_inventory_agent,
-        create_product_catalog_agent,
-        create_shipping_agent,
-    )
     from day_5.Agent2Agent_Communication.config import (  # noqa: E402
         A2A_LABELS,
         A2A_PORTS,
@@ -61,8 +52,14 @@ else:  # Fallback when running the script directly (python path/to/agent.py)
         RETRY_CONFIG,
     )
 
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("default")
 print("✅ ADK components imported successfully.")
+
+WAIT_FOR_AGENT_CARD = os.environ.get("A2A_WAIT_FOR_AGENT_CARD", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+}
 
 AGENT_KEYS: Iterable[str] = ("product_catalog", "inventory", "shipping")
 SCENARIO_PROMPTS: List[str] = [
@@ -78,15 +75,11 @@ REMOTE_DESCRIPTIONS: Dict[str, str] = {
     "shipping": "Remote shipping logistics agent for delivery estimates and tracking.",
 }
 
-AGENT_BUILDERS = {
-    "product_catalog": (create_product_catalog_agent, "get_product_info()"),
-    "inventory": (create_inventory_agent, "get_inventory_status()"),
-    "shipping": (create_shipping_agent, "get_shipping_info()"),
-}
-
 
 def wait_for_server(port: int, agent_label: str, retries: int = 30) -> bool:
     """Poll until an A2A server responds."""
+    if not WAIT_FOR_AGENT_CARD:
+        return True
     url = f"http://localhost:{port}{AGENT_CARD_WELL_KNOWN_PATH}"
     for attempt in range(retries):
         try:
@@ -103,6 +96,9 @@ def wait_for_server(port: int, agent_label: str, retries: int = 30) -> bool:
 
 def log_agent_card(port: int, agent_label: str) -> None:
     """Fetch and display the agent card for visibility."""
+    if not WAIT_FOR_AGENT_CARD:
+        print(f"⚠️  Skipping agent card fetch for {agent_label} (A2A_WAIT_FOR_AGENT_CARD=0).")
+        return
     try:
         response = requests.get(
             f"http://localhost:{port}{AGENT_CARD_WELL_KNOWN_PATH}", timeout=5
@@ -128,32 +124,50 @@ def start_a2a_server(agent_key: str) -> subprocess.Popen:
     port = A2A_PORTS[agent_key]
     label = A2A_LABELS[agent_key]
 
-    process = subprocess.Popen(
-        [
-            "uvicorn",
-            f"{module_path}:app",
-            "--host",
-            "localhost",
-            "--port",
-            str(port),
-        ],
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env={**os.environ},
-    )
+    try:
+        process = subprocess.Popen(
+            [
+                "uvicorn",
+                f"{module_path}:app",
+                "--host",
+                "localhost",
+                "--port",
+                str(port),
+            ],
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env={**os.environ},
+        )
+    except (FileNotFoundError, OSError) as exc:
+        print(f"❌ Failed to start {label} server: {exc}")
+        raise
+
     print(f"🚀 Starting {label} server on port {port}...")
     wait_for_server(port, label)
     log_agent_card(port, label)
     return process
 
 
-def start_all_servers() -> List[subprocess.Popen]:
-    """Spin up all specialized agents."""
-    processes: List[subprocess.Popen] = []
-    for agent_key in AGENT_KEYS:
-        processes.append(start_a2a_server(agent_key))
-    return processes
+
+def server_is_available(agent_key: str) -> bool:
+    """Return True if the remote agent card resolves successfully."""
+    try:
+        response = requests.get(
+            f"http://localhost:{A2A_PORTS[agent_key]}{AGENT_CARD_WELL_KNOWN_PATH}", timeout=2
+        )
+        return response.status_code == 200
+    except requests.exceptions.RequestException:
+        return False
+
+
+def ensure_servers_running(force_start: bool = False) -> List[subprocess.Popen]:
+    """Start any missing servers (or all if force_start)."""
+    started: List[subprocess.Popen] = []
+    target_keys = AGENT_KEYS if force_start else [k for k in AGENT_KEYS if not server_is_available(k)]
+    for agent_key in target_keys:
+        started.append(start_a2a_server(agent_key))
+    return started
 
 
 def shutdown_servers(processes: Iterable[subprocess.Popen]) -> None:
@@ -167,57 +181,58 @@ def shutdown_servers(processes: Iterable[subprocess.Popen]) -> None:
                 process.kill()
 
 
-def build_remote_agents() -> Dict[str, RemoteA2aAgent]:
+def build_remote_agents(require_running: bool = True) -> Dict[str, RemoteA2aAgent]:
     """Create RemoteA2aAgent proxies for each specialized service."""
     remotes: Dict[str, RemoteA2aAgent] = {}
     for agent_key in AGENT_KEYS:
+        if require_running and not server_is_available(agent_key):
+            raise RuntimeError(
+                f"{A2A_LABELS[agent_key]} server is not reachable at "
+                f"http://localhost:{A2A_PORTS[agent_key]}. "
+                "Start the A2A servers (e.g., run `python day_5/Agent2Agent_Communication/agent.py` "
+                "or set A2A_AUTO_START_SERVERS=1) before requesting the root agent."
+            )
         remotes[agent_key] = RemoteA2aAgent(
             name=A2A_REMOTE_NAMES[agent_key],
             description=REMOTE_DESCRIPTIONS[agent_key],
             agent_card=f"http://localhost:{A2A_PORTS[agent_key]}{AGENT_CARD_WELL_KNOWN_PATH}",
         )
-        print(
-            f"✅ Remote {A2A_LABELS[agent_key]} proxy created at "
-            f"http://localhost:{A2A_PORTS[agent_key]}"
-        )
+        print(f"✅ Remote {A2A_LABELS[agent_key]} proxy configured at port {A2A_PORTS[agent_key]}")
     return remotes
 
 
-# Build the specialized agents (for documentation/logging purposes)
-for agent_key, (builder, tool_name) in AGENT_BUILDERS.items():
-    builder()
-    print(f"✅ {A2A_LABELS[agent_key]} definition loaded (Tool: {tool_name})")
+def create_customer_support_agent(remote_agents: Dict[str, RemoteA2aAgent]) -> LlmAgent:
+    """Assemble the orchestrator that coordinates remote specialists."""
+    agent = LlmAgent(
+        model=Gemini(model=MODEL_NAME, retry_options=RETRY_CONFIG),
+        name="customer_support_agent",
+        description="Customer support assistant coordinating product, inventory, and shipping requests.",
+        instruction="""
+        You are a friendly and professional customer support agent.
 
-# Launch uvicorn servers so they can be accessed via A2A.
-a2a_server_processes = start_all_servers()
-globals()["a2a_server_processes"] = a2a_server_processes
+        Always coordinate with specialized sub-agents:
+        1. Use product_catalog_agent for detailed specs, pricing, and comparisons.
+        2. Use inventory_agent to confirm real-time stock counts and restock timelines.
+        3. Use shipping_agent for delivery ETAs or tracking events (provide city or order ID).
 
-# Create remote proxies and wire up the orchestrator.
-remote_agents = build_remote_agents()
-customer_support_agent = LlmAgent(
-    model=Gemini(model=MODEL_NAME, retry_options=RETRY_CONFIG),
-    name="customer_support_agent",
-    description="Customer support assistant coordinating product, inventory, and shipping requests.",
-    instruction="""
-    You are a friendly and professional customer support agent.
-
-    Always coordinate with specialized sub-agents:
-    1. Use product_catalog_agent for detailed specs, pricing, and comparisons.
-    2. Use inventory_agent to confirm real-time stock counts and restock timelines.
-    3. Use shipping_agent for delivery ETAs or tracking events (provide city or order ID).
-
-    Combine their insights into a single coherent response for the customer.
-    """,
-    sub_agents=list(remote_agents.values()),
-)
-
-print("✅ Customer Support Agent created!")
-print("   Model:", MODEL_NAME)
-print("   Sub-agents: 3 (Product Catalog, Inventory, Shipping via A2A)")
-root_agent = customer_support_agent
+        Combine their insights into a single coherent response for the customer.
+        """,
+        sub_agents=list(remote_agents.values()),
+    )
+    print("✅ Customer Support Agent created!")
+    print("   Model:", MODEL_NAME)
+    print("   Sub-agents: 3 (Product Catalog, Inventory, Shipping via A2A)")
+    return agent
 
 
-async def test_a2a_communication(user_query: str) -> None:
+def initialize_agents() -> tuple[LlmAgent, List[subprocess.Popen]]:
+    """Start servers and return the orchestrator along with process handles."""
+    a2a_server_processes = ensure_servers_running(force_start=True)
+    remote_agents = build_remote_agents()
+    return create_customer_support_agent(remote_agents), a2a_server_processes
+
+
+async def test_a2a_communication(user_query: str, customer_support_agent: LlmAgent) -> None:
     """Exercise the Customer Support Agent over a single query."""
     session_service = InMemorySessionService()
     app_name = "support_app"
@@ -246,12 +261,62 @@ async def test_a2a_communication(user_query: str) -> None:
 
 async def main() -> None:
     """Entry point when running this module as a script."""
-    print("🧪 Testing A2A Communication...\n")
-    for prompt in SCENARIO_PROMPTS:
-        await test_a2a_communication(prompt)
+    customer_support_agent, a2a_server_processes = initialize_agents()
+    try:
+        print("🧪 Testing A2A Communication...\n")
+        for prompt in SCENARIO_PROMPTS:
+            await test_a2a_communication(prompt, customer_support_agent)
+    finally:
+        shutdown_servers(a2a_server_processes)
+        cleanup_root_agent()
+        print("\n🛑 Shut down all A2A agent servers.")
 
-    shutdown_servers(globals().get("a2a_server_processes", []))
-    print("\n🛑 Shut down all A2A agent servers.")
+
+_root_agent_instance: LlmAgent | None = None
+_root_processes: List[subprocess.Popen] = []
+_cleanup_registered = False
+
+
+def get_root_agent(auto_start: bool = True) -> LlmAgent:
+    """Return the orchestrator, optionally starting managed servers."""
+    global _root_agent_instance
+    if _root_agent_instance is not None:
+        return _root_agent_instance
+
+    started_processes: List[subprocess.Popen] = []
+    if auto_start:
+        started_processes = ensure_servers_running(force_start=False)
+        _root_processes.extend(started_processes)
+    _root_agent_instance = create_customer_support_agent(build_remote_agents(require_running=True))
+    return _root_agent_instance
+
+
+def cleanup_root_agent() -> None:
+    """Stop any servers started through get_root_agent()."""
+    global _root_agent_instance
+    if _root_processes:
+        shutdown_servers(_root_processes)
+        _root_processes.clear()
+    _root_agent_instance = None
+
+
+auto_start_default = os.environ.get("A2A_AUTO_START_SERVERS")
+if auto_start_default is None:
+    auto_start_default = str(__name__ != "__main__")
+auto_start_enabled = auto_start_default.strip().lower() not in {"0", "false", "no"}
+
+
+def _initialize_root_agent() -> LlmAgent:
+    global _root_agent_instance, _cleanup_registered
+    if _root_agent_instance is None:
+        _root_agent_instance = get_root_agent(auto_start=auto_start_enabled)
+        if not _cleanup_registered:
+            atexit.register(cleanup_root_agent)
+            _cleanup_registered = True
+    return _root_agent_instance
+
+
+root_agent = _initialize_root_agent()
 
 
 if __name__ == "__main__":
